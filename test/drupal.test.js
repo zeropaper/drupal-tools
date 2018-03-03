@@ -35,28 +35,11 @@ describe('Drupal', () => {
     const drupalRootDir = resolve(TEST_DRUPAL_EXISTING);
 
     beforeEach(() => {
-      instance = new Drupal({
+      instance = (instance || new Drupal({
         rootPath: drupalRootDir,
         siteURI: TEST_DRUPAL_URI,
-      });
+      }));
     });
-
-    // it('has a drupalRootDir', () => {
-    //   let dirStat;
-    //   expect(() => {
-    //     dirStat = statSync(drupalRootDir);
-    //   }).not.toThrow();
-    //   expect(dirStat.isDirectory()).toBe(true);
-    // });
-
-    // it('instanciates', () => {
-    //   expect(async () => {
-    //     instance = new Drupal({
-    //       rootPath: drupalRootDir,
-    //       siteURI: TEST_DRUPAL_URI,
-    //     });
-    //   }).not.toThrow();
-    // });
 
     it('scans', async () => {
       expect.assertions(2);
@@ -83,18 +66,15 @@ describe('Drupal', () => {
     it('executes drush commands', async () => {
       expect.assertions(4);
       const { stdout, stderr } = await instance.drush('help');
-      // console.info('stdout', Object.keys(stdout));
       expect(stdout).toHaveProperty('cache');
       expect(stdout).toHaveProperty('core');
       expect(stdout).toHaveProperty('config');
       expect(stderr).toBeFalsy();
-      // expect(stdout).toHaveProperty('libraries');
     }, 1000 * 20);
 
     it('executes composer commands', async () => {
       expect.assertions(3);
       const { stdout, stderr } = await instance.composer('list');
-      console.info('stdout', typeof stdout);
       expect(stdout).toHaveProperty('commands');
       expect(stdout).toHaveProperty('namespaces');
       expect(stderr).toBeFalsy();

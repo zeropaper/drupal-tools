@@ -8,6 +8,9 @@ module.exports = {
         }
       }
     }],
+    ['@neutrinojs/library', {
+      name: 'drupal-tools',
+    }],
     '@neutrinojs/jest'
   ]
 };
