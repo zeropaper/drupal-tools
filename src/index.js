@@ -1,6 +1,7 @@
-const { relative, basename, dirname } = require('path');
+const { resolve, relative, basename, dirname } = require('path');
 const { statSync, readFile } = require('fs');
-const { exec } = require('child_process');
+const { remove, ensureDir, readJson, writeJson } = require('fs-extra');
+const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const glob = require('glob');
 const yaml = require('yaml-js');
@@ -36,7 +37,7 @@ export class DrupalVendor {
 
 export class Collection {
   constructor(Model, data, opts = {
-    sort: false
+    sort: false,
   }) {
     this.Model = Model;
     this.reset(data);
@@ -59,7 +60,7 @@ export class Collection {
 const cmd2JSON = result => ({
   stdout: JSON.parse(result.stdout || 'null'),
   stderr: result.stderr,
-})
+});
 
 export default class Drupal {
   constructor({
@@ -105,7 +106,7 @@ export default class Drupal {
 
   async readInfo() {
     const self = this;
-    const scannedInfo = (this._scanned || {info: []}).info || [];
+    const scannedInfo = (this._scanned || { info: [] }).info || [];
     return Promise.all(scannedInfo.map(file => this.readInfoFile(file)))
       .then((infoArr) => {
         const mapped = {};
@@ -128,20 +129,19 @@ export default class Drupal {
     return dirname(this.getFilename(type, name));
   }
 
-  async drush(cmd) {
-    return execAsync(`${this.drushBin} --uri=${this.siteURI} ${cmd} --format=json`, {
+  exec(cmd) {
+    return execAsync(cmd, {
       cwd: this.rootPath,
-      maxBuffer: Infinity
-    })
-      .then(cmd2JSON);
+      maxBuffer: Infinity,
+    }).then(cmd2JSON);
   }
 
-  async composer(cmd) {
-    return execAsync(`${this.composerBin} --format=json ${cmd}`, {
-      cwd: this.rootPath,
-      maxBuffer: Infinity
-    })
-      .then(cmd2JSON);
+  drush(cmd) {
+    return this.exec(`${this.drushBin} --uri=${this.siteURI} ${cmd} --format=json`);
+  }
+
+  composer(cmd) {
+    return this.exec(`${this.composerBin} --format=json ${cmd}`);
   }
 
   scan(force) {
@@ -171,23 +171,23 @@ export default class Drupal {
     };
 
     const processFiles = files => files
-      .map((file) => relative(opts.root, file))
+      .map(file => relative(opts.root, file))
       .filter(file => file.indexOf('test') < 0);
 
-    const globCb = (resolve, reject) => (err, files) => {
+    const globCb = (res, rej) => (err, files) => {
       if (err) {
-        reject(err);
+        rej(err);
         return;
       }
-      resolve(processFiles(files));
+      res(processFiles(files));
     };
 
     const makePromise = (fileType) => {
       const extension = fileTypes[fileType];
       const globPattern = `/${searchPattern}/**/*.${extension}`;
 
-      return new Promise((resolve, reject) => {
-        glob(globPattern, opts, globCb(resolve, reject));
+      return new Promise((res, rej) => {
+        glob(globPattern, opts, globCb(res, rej));
       });
     };
 
@@ -195,10 +195,49 @@ export default class Drupal {
       .then(toObject);
   }
 
-  static async scaffold(options = {
-    composerBin: 'composer',
-    destination: './drupal'
-  }) {
+  static async install(options = {}) {
+    const {
+      composerBin = 'composer',
+      destination = './drupal',
+      composerOptions = {},
+      version = '8.x-dev',
+      stability = 'dev',
+    } = options;
 
+    await remove(destination);
+
+    await new Promise((res, rej) => {
+      const args = [
+        'create-project',
+        `drupal-composer/drupal-project:${version}`,
+        destination,
+        '--stability',
+        stability,
+        '--no-interaction',
+      ];
+
+      const proc = spawn(composerBin, args);
+      let stderr = '';
+      proc.stderr.on('data', (data) => {
+        stderr += data;
+      });
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          // eslint-disable-next-line no-console
+          console.info('stderr', stderr);
+          rej(new Error(`Process exited with code "${code}".`));
+          return;
+        }
+        res();
+      });
+      proc.on('error', rej);
+    });
+
+    let composerJson = await readJson(resolve(`${destination}/composer.json`));
+    composerJson = {
+      ...composerJson,
+      ...composerOptions,
+    };
+    return writeJson(`${destination}/composer.json`, composerJson, { spaces: 2 });
   }
-};
+}

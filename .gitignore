@@ -1,3 +1,7 @@
+# Tests
+test_drupal
+.drupal
+
 # Logs
 logs
 *.log
