@@ -1,6 +1,6 @@
 const { resolve, relative, basename, dirname } = require('path');
 const { statSync, readFile } = require('fs');
-const { remove, ensureDir, readJson, writeJson } = require('fs-extra');
+const { remove, readJson, writeJson } = require('fs-extra');
 const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const glob = require('glob');
@@ -15,30 +15,30 @@ export class DrupalSite {
   }
 }
 
+/* eslint-disable */
 export class DrupalLibrary {
   constructor() {}
 }
 
 export class DrupalModule {
-  constructor(infoFileObject) {}
+  constructor() {}
 }
 
 export class DrupalEngine {
-  constructor(infoFileObject) {}
+  constructor() {}
 }
 
 export class DrupalTheme {
-  constructor(infoFileObject) {}
+  constructor() {}
 }
 
 export class DrupalVendor {
   constructor() {}
 }
+/* eslint-enable */
 
 export class Collection {
-  constructor(Model, data, opts = {
-    sort: false,
-  }) {
+  constructor(Model, data) {
     this.Model = Model;
     this.reset(data);
   }
