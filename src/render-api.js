@@ -35,6 +35,16 @@ export const each = (data, cb) => keys(data).forEach(key => cb(data[key], key));
 
 export const map = (data, cb) => keys(data).map(key => cb(data[key], key));
 
+export const templateNameCase = name => name.replace('_', '-');
+
+export const templateSuggestions = (themeName, activeModuleNames = []) => (name) => {
+  const prefixes = ['template', ...activeModuleNames, themeName];
+  // eslint-disable-next-line no-console
+  console.log('prefixes', prefixes.map(pre => `${pre}_${name}`));
+  const found = [];
+  return found;
+};
+
 export default function render(struct) {
   if (struct['#children']) {
     return struct['#children'];

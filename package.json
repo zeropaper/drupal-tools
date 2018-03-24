@@ -1,12 +1,16 @@
 {
   "name": "drupal-tools",
   "version": "0.0.1",
-  "main": "index.js",
+  "main": "build/index.js",
   "author": "Valentin Vago <zeropaper@irata.ch>",
   "license": "MIT",
   "scripts": {
+    "start": "neutrino start",
+    "build": "neutrino build",
     "lint": "neutrino lint",
-    "test": "neutrino test"
+    "test": "neutrino test",
+    "auto-test": "neutrino test --watchAll",
+    "postinstall": "neutrino build"
   },
   "pre-commit": [
     "lint",
@@ -21,6 +25,8 @@
     "@neutrinojs/airbnb-base": "^8.1.2",
     "@neutrinojs/jest": "^8.1.2",
     "@neutrinojs/library": "^8.1.2",
+    "babel-plugin-dynamic-import-node": "^1.2.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "neutrino": "^8.1.2",
     "pre-commit": "^1.2.2"
   }

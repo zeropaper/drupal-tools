@@ -3,16 +3,53 @@ const {
   getDescendantProp,
   setDescendantProp,
   unsetDescendantProp,
+  // templateNameCase,
   keys,
   each,
   map,
 } = require('./../src/render-api');
 
+const structure = {
+  '#theme': 'item_list',
+  '#items': {
+    item_1: {
+      link_1: {
+        '#type': 'link',
+        '#href': 'http://example.loc',
+        '#title': 'Link #1',
+        '#attributes': {
+          class: ['link', 'link--external'],
+        },
+      },
+    },
+    item_2: {
+      link_2: {
+        '#type': 'link',
+        '#href': '/internal/path',
+        '#title': 'Link #2',
+        '#attributes': {
+          class: ['link', 'link--internal'],
+        },
+      },
+    },
+  },
+};
 
 describe('render API', () => {
+  let struct;
+
+  beforeEach(() => {
+    struct = JSON.parse(JSON.stringify(structure));
+  });
+
+
   describe('getDescendantProp()', () => {
     it('is a function', () => {
       expect(typeof getDescendantProp).toBe('function');
+    });
+
+    it('finds values in nested objects', () => {
+      expect(getDescendantProp(struct, '#items.item_1.link_1.#title')).toBe('Link #1');
     });
   });
 
@@ -20,6 +57,13 @@ describe('render API', () => {
   describe('setDescendantProp()', () => {
     it('is a function', () => {
       expect(typeof setDescendantProp).toBe('function');
+    });
+
+    it('changes values in nested objects', () => {
+      expect(() => {
+        setDescendantProp(struct, '#items.item_1.link_1', { '#title': 'changed' });
+      }).not.toThrow();
+      expect(struct).toHaveProperty('#items.item_1.link_1.#title', 'changed');
     });
   });
 
