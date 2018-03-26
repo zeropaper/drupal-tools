@@ -19,9 +19,7 @@
   "dependencies": {
     "fs-extra": "^5.0.0",
     "glob": "^7.1.2",
-    "yaml-js": "^0.2.3"
-  },
-  "devDependencies": {
+    "yaml-js": "^0.2.3",
     "@neutrinojs/airbnb-base": "^8.1.2",
     "@neutrinojs/jest": "^8.1.2",
     "@neutrinojs/library": "^8.1.2",
