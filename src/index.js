@@ -7,6 +7,7 @@ const glob = require('glob');
 const yaml = require('yaml-js');
 
 const execAsync = promisify(exec);
+const globAsync = promisify(glob);
 
 const unique = array => array.reduce((acc, item) => {
   if (!item || acc.indexOf(item) > -1) return acc;
@@ -173,15 +174,21 @@ const cmd2JSON = result => ({
 });
 
 export default class Drupal {
-  constructor({
-    rootPath,
-    siteURI,
-    drushBin = './vendor/bin/drush',
-    composerBin = 'composer',
-    themeName = 'bartik', // based on "classy"
-    adminThemeName = 'seven',
-    activeModuleNames = [],
-  }) {
+  constructor(opts = {}) {
+    const {
+      rootPath,
+      siteURI,
+      drushBin = './vendor/bin/drush',
+      composerBin = 'composer',
+      themeName = 'bartik', // based on "classy"
+      adminThemeName = 'seven',
+      activeModuleNames = [],
+      fileTypes = {
+        info: 'info.{yml,yaml}',
+        libraries: 'libraries.{yml,yaml}',
+        templates: 'html.twig',
+      },
+    } = opts;
     if (!statSync(rootPath).isDirectory()) {
       throw new Error(`"${rootPath}" is not a directory.`);
     }
@@ -199,6 +206,8 @@ export default class Drupal {
     this.libraries = new Collection(DrupalLibrary, []);
     this.engines = new Collection(DrupalThemeEngine, []);
     this.vendors = new Collection(DrupalVendor, []);
+
+    this.fileTypes = fileTypes;
   }
 
   get site() {
@@ -217,12 +226,8 @@ export default class Drupal {
     return this.modules.filter(module => this.activeModuleNames.contains(module.id));
   }
 
-  get searchPattern() {
-    return `{modules,themes,core/modules,core/themes,sites/{all,${this.siteURI}}}`;
-  }
-
   absPath(file) {
-    return `${this.rootPath}/${file}`;
+    return resolve(`${this.rootPath}/${file}`);
   }
 
   typeToCollection(type) {
@@ -265,8 +270,6 @@ export default class Drupal {
         templates[name] = filepath;
       });
 
-    // eslint-disable-next-line no-console
-    console.log('templates for %s %s', machineName, info.type, js);
     return {
       ...info,
       js,
@@ -277,28 +280,29 @@ export default class Drupal {
   }
 
   async readInfo(force) {
-    const self = this;
-    if (self._info && !force) return self._info;
+    if (!force && this._info) return this._info;
+    const mapped = {};
     const scannedInfo = (this._scanned || { info: [] }).info || [];
+    const infoArr = await Promise.all(scannedInfo.map(file => this.readInfoFile(file)));
 
-    return Promise.all(scannedInfo.map(file => this.readInfoFile(file)))
-      .then((infoArr) => {
-        const mapped = {};
-        infoArr.forEach((info) => {
-          if (!info.type) return;
-          mapped[info.type] = mapped[info.type] || [];
-          mapped[info.type].push(info);
-          const collection = self.typeToCollection(info.type);
-          if (collection) {
-            collection.add(info);
-          } else {
-            // eslint-disable-next-line no-console
-            console.log('no collection for %s', info.type);
-          }
-        });
-        self._info = mapped;
-        return mapped;
-      });
+
+    infoArr.forEach((info) => {
+      if (!info.type) return;
+
+      mapped[info.type] = mapped[info.type] || [];
+      mapped[info.type].push(info);
+
+      const collection = this.typeToCollection(info.type);
+      if (collection) {
+        collection.add(info);
+      } else {
+        // esslint-disable-next-line no-console
+        console.warn('no collection for %s', info.type);
+      }
+    });
+
+    this._info = mapped;
+    return mapped;
   }
 
   getFilename(type, name, filename = null) {
@@ -354,6 +358,49 @@ export default class Drupal {
     this.invokeTheme(`preprocess_${hook}`, [variables]);
   }
 
+  themeSuggestionHook(hook, variables) { // eslint-disable-line
+    // eslint-disable-next-line no-console
+    console.log('themeSuggestionHook', hook);
+  }
+
+  themeSuggestionAlter(suggestion, variables) { // eslint-disable-line
+    // eslint-disable-next-line no-console
+    console.log('themeSuggestionAlter', suggestion);
+  }
+
+  themeSuggestionHookAlter(hook, suggestion, variables) { // eslint-disable-line
+    // eslint-disable-next-line no-console
+    console.log('themeSuggestionHookAlter', hook, suggestion);
+  }
+
+  themeGetSuggestions(args, base, delimiter = '__') { // eslint-disable-line
+    const suggestions = [];
+    let prefix = base;
+    args.forEach((arg) => {
+      const cleanArg = arg
+        .split('/')
+        .join('')
+        .split('\\')
+        .join('')
+        .split('\0')
+        .join('')
+        .split('-')
+        .join('_');
+
+      const isNum = !Number.isNaN(Number.parseInt(cleanArg, 10));
+      if (isNum) {
+        suggestions.push(`${prefix}${delimiter}%`);
+      }
+
+      suggestions.push(`${prefix}${delimiter}${cleanArg}`);
+
+      if (!isNum) {
+        prefix += `${delimiter}${cleanArg}`;
+      }
+    });
+    return suggestions;
+  }
+
   // see https://api.drupal.org/api/drupal/core%21modules%21block%21templates%21block.html.twig/8.5.x
   // $elements = array(
   //   '#theme' => 'block',
@@ -402,54 +449,48 @@ export default class Drupal {
   }
 
   scan(force) {
-    if (force && this._scanned) return this._scanned;
-    this._scanned = false;
-    const { searchPattern, rootPath } = this;
-    const fileTypes = {
-      info: 'info.{yml,yaml}',
-      styles: '{css,scss,sass,less}',
-      scripts: '{js,jsx}',
-      templates: 'html.twig',
-    };
+    if (!force && this._scanned) return this._scanned;
+    this._scanned = force ? {} : this._scanned || {};
+    const { siteURI, rootPath, fileTypes } = this;
     const fileTypeNames = Object.keys(fileTypes);
 
     const opts = {
+      ignore: ['**/node_modules/**', '**/test/**'],
       root: rootPath,
+      cwd: rootPath,
       // debug: true,
     };
 
-    const toObject = (groups) => {
-      const mapped = {};
-      groups.forEach((files, g) => {
-        mapped[fileTypeNames[g]] = files;
-      });
-      this._scanned = mapped;
-      return mapped;
+    const toObject = fileType => (files) => {
+      this._scanned[fileType] = unique([
+        ...(this._scanned[fileType] || []),
+        ...files.filter(filepath => filepath.indexOf('test') < 0),
+      ]);
     };
 
-    const processFiles = files => files
-      .map(file => relative(opts.root, file))
-      .filter(file => file.indexOf('test') < 0);
-
-    const globCb = (res, rej) => (err, files) => {
-      if (err) {
-        rej(err);
-        return;
-      }
-      res(processFiles(files));
-    };
-
-    const makePromise = (fileType) => {
+    const makePromise = directory => (fileType) => {
       const extension = fileTypes[fileType];
-      const globPattern = `/${searchPattern}/**/*.${extension}`;
+      const globPattern = `${directory}/**/*.${extension}`;
 
-      return new Promise((res, rej) => {
-        glob(globPattern, opts, globCb(res, rej));
-      });
+      return globAsync(globPattern, opts)
+        .then(toObject(fileType));
     };
 
-    return Promise.all(fileTypeNames.map(makePromise))
-      .then(toObject);
+    const promises = [
+      ...fileTypeNames.map(makePromise('core/modules')),
+      ...fileTypeNames.map(makePromise('core/themes')),
+
+      ...fileTypeNames.map(makePromise('modules')),
+      ...fileTypeNames.map(makePromise('themes')),
+
+      ...fileTypeNames.map(makePromise('sites/all/modules')),
+      ...fileTypeNames.map(makePromise('sites/all/themes')),
+      ...fileTypeNames.map(makePromise(`sites/${siteURI}/modules`)),
+      ...fileTypeNames.map(makePromise(`sites/${siteURI}/themes`)),
+    ];
+
+    return Promise.all(promises)
+      .then(() => this._scanned);
   }
 
   // https://hub.docker.com/r/wadmiraal/drupal/

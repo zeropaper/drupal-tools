@@ -10,8 +10,8 @@ const {
   Collection,
 } = drupalLib;
 const {
-  TEST_DRUPAL_URI = 'irata.loc',
-  TEST_DRUPAL_INSTALL = '/tmp/drupal-test',// './../../d8/irata',
+  TEST_DRUPAL_URI = 'default',
+  TEST_DRUPAL_INSTALL = '/tmp/drupal-test', // './../../d8/irata',
   TEST_DRUPAL_EXISTING = './../../d8/irata',
 } = process.env;
 const { resolve } = require('path');
@@ -28,7 +28,7 @@ const drupalRendered = `<div class="custom-class block block-provider-a-b block-
   </div>`;
 
 describe('Drupal', () => {
-  describe.skip('static composerInstall()', () => {
+  describe.skip('static composerInstall()', () => { // eslint-disable-line
     it('executes Drupal install', async () => Drupal.composerInstall({
       composerOptions: {
         description: 'Drupal Test Install',
@@ -46,7 +46,7 @@ describe('Drupal', () => {
       instance = (instance || new Drupal({
         rootPath: drupalRootDir,
         siteURI: TEST_DRUPAL_URI,
-        themeName: 'irata',
+        themeName: 'craftsman',
         activeModuleNames: [
           'libraries',
           'devel',
@@ -57,9 +57,11 @@ describe('Drupal', () => {
 
     describe('scan()', () => {
       it('searches for relevant files', async () => {
-        expect.assertions(2);
+        expect.assertions(4);
         const scanResult = await instance.scan();
         expect(scanResult).toBeTruthy();
+        expect(scanResult).toHaveProperty('info');
+        expect(scanResult).toHaveProperty('libraries');
         expect(instance._scanned).toBeTruthy();
       }, 1000 * 20);
     });
@@ -68,6 +70,7 @@ describe('Drupal', () => {
     describe('readInfo()', () => {
       it('reads info files', async () => {
         expect.assertions(5);
+        await instance.scan();
         const info = await instance.readInfo();
         expect(info).toHaveProperty('module');
         expect(info).toHaveProperty('theme');
@@ -100,7 +103,7 @@ describe('Drupal', () => {
 
     describe('site', () => {
       it('returns the active theme', () => {
-        expect(instance.theme).toHaveProperty('machine name', 'irata');
+        expect(instance.theme).toHaveProperty('machine name', 'craftsman');
       });
     });
 
@@ -115,6 +118,7 @@ describe('Drupal', () => {
     describe('modules', () => {
       it('dependencyTree', () => {
         const fieldUI = instance.modules.findBy('id', 'field_ui');
+        // eslint-disable-next-line no-console
         console.log('field_ui', fieldUI.dependencyTree);
       });
     });
@@ -125,7 +129,7 @@ describe('Drupal', () => {
         instance = (instance || new Drupal({
           rootPath: drupalRootDir,
           siteURI: TEST_DRUPAL_URI,
-          themeName: 'irata',
+          themeName: 'craftsman',
           activeModuleNames: [
             'libraries',
             'devel',
@@ -173,7 +177,7 @@ describe('Drupal', () => {
     });
 
 
-    describe('render()', () => {
+    describe.skip('render()', () => {
       it('renders from template', () => {
         let rendered = '';
         expect(() => {
@@ -195,7 +199,7 @@ describe('Drupal', () => {
 
     describe('drush()', () => {
       it('executes drush commands', async () => {
-        expect.assertions(4);
+        expect.assertions(3);
         const { stdout, stderr } = await instance.drush('st');
         expect(stdout).toHaveProperty('bootstrap', 'Successful');
         expect(stdout).toHaveProperty('db-status', 'Connected');
